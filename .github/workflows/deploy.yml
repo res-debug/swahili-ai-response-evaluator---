@@ -1,0 +1,5 @@
+mkdir -p .github/workflows
+# paste deploy.yml content into .github/workflows/deploy.yml
+git add .github/workflows/deploy.yml
+git commit -m "Add GitHub Pages deployment workflow"
+git push
