@@ -1,1 +1,187 @@
-swahili-ai-response-evaluator/├── .github/│   └── workflows/│       └── deploy.yml├── css/│   └── styles.css├── js/│   ├── app.js│   ├── data.js│   ├── storage.js│   ├── scoring.js│   ├── export.js│   └── tests.js├── data/│   └── tasks.json├── tests/│   └── test-runner.html├── index.html├── README.md├── LICENSE└── .gitignore
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Swahili AI Response Evaluator</title>
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <header class="site-header">
+    <div class="header-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">◆</span>
+        <div>
+          <h1>Swahili AI Response Evaluator</h1>
+          <p class="tagline">Human evaluation dashboard · Kenyan Swahili &amp; English</p>
+        </div>
+      </div>
+      <nav class="top-nav" aria-label="Primary">
+        <button class="nav-btn active" data-view="evaluate" aria-current="page">Evaluate</button>
+        <button class="nav-btn" data-view="history">History</button>
+        <button class="nav-btn" data-view="dashboard">Dashboard</button>
+        <button class="nav-btn" data-view="rubric">Rubric &amp; Method</button>
+      </nav>
+    </div>
+  </header>
+
+  <div class="demo-banner" role="note">
+    ⚠️ All tasks and responses are <strong>synthetic</strong>. All scores and statistics are <strong>demonstration results</strong> only.
+  </div>
+
+  <main id="main" class="container">
+
+    <!-- ===================== EVALUATE VIEW ===================== -->
+    <section id="view-evaluate" class="view active" aria-labelledby="eval-heading">
+      <div class="toolbar">
+        <div class="progress">
+          <label for="task-select">Task</label>
+          <select id="task-select" aria-describedby="task-meta"></select>
+          <span id="task-meta" class="meta-text"></span>
+        </div>
+        <div class="toolbar-actions">
+          <button id="btn-prev" class="btn ghost" type="button">← Prev</button>
+          <button id="btn-next" class="btn ghost" type="button">Next →</button>
+        </div>
+      </div>
+
+      <article class="task-card" aria-live="polite">
+        <div class="task-head">
+          <span id="task-category" class="chip"></span>
+          <span id="task-language" class="chip subtle"></span>
+          <span id="task-id" class="chip subtle"></span>
+        </div>
+        <h2 id="task-question" class="question"></h2>
+        <div id="task-context" class="context hidden"></div>
+        <details class="reference" id="task-reference-box">
+          <summary>Reference answer &amp; explanation</summary>
+          <div id="task-reference" class="reference-body"></div>
+        </details>
+      </article>
+
+      <div class="compare-grid">
+        <article class="response-card" data-side="A">
+          <header class="response-head">
+            <h3>Response A</h3>
+            <span class="badge" id="badge-a">—</span>
+          </header>
+          <p id="response-a" class="response-text" lang="sw"></p>
+        </article>
+        <article class="response-card" data-side="B">
+          <header class="response-head">
+            <h3>Response B</h3>
+            <span class="badge" id="badge-b">—</span>
+          </header>
+          <p id="response-b" class="response-text" lang="sw"></p>
+        </article>
+      </div>
+
+      <form id="eval-form" class="eval-form" novalidate>
+        <fieldset class="verdict-fieldset">
+          <legend>Verdict</legend>
+          <div class="verdict-group" role="radiogroup" aria-label="Verdict">
+            <label class="verdict-opt"><input type="radio" name="verdict" value="A" /> Response A better</label>
+            <label class="verdict-opt"><input type="radio" name="verdict" value="B" /> Response B better</label>
+            <label class="verdict-opt"><input type="radio" name="verdict" value="both" /> Both acceptable</label>
+            <label class="verdict-opt"><input type="radio" name="verdict" value="neither" /> Neither acceptable</label>
+          </div>
+        </fieldset>
+
+        <div class="score-grid" id="score-grid">
+          <!-- populated by JS -->
+        </div>
+
+        <div class="justify-block">
+          <label for="justification">Written justification <span class="req">*</span></label>
+          <textarea id="justification" rows="3" maxlength="600"
+            placeholder="Explain your verdict and scores. Cite fluency, accuracy, or instruction-following issues."></textarea>
+
+          <label for="error-category">Error category (select all that apply)</label>
+          <div id="error-category" class="error-grid" role="group" aria-label="Error categories"></div>
+
+          <label class="flag-line">
+            <input type="checkbox" id="flag-uncertain" />
+            Flag this evaluation as uncertain / needs review
+          </label>
+
+          <div class="form-actions">
+            <button type="submit" class="btn primary" id="btn-save">Save Evaluation</button>
+            <button type="button" class="btn ghost" id="btn-clear">Clear form</button>
+            <span id="form-status" class="form-status" role="status" aria-live="polite"></span>
+          </div>
+        </div>
+      </form>
+    </section>
+
+    <!-- ===================== HISTORY VIEW ===================== -->
+    <section id="view-history" class="view" aria-labelledby="hist-heading" hidden>
+      <div class="toolbar">
+        <h2 id="hist-heading">Evaluation history</h2>
+        <div class="toolbar-actions">
+          <button class="btn ghost" id="btn-export-csv" type="button">Export CSV</button>
+          <button class="btn ghost" id="btn-export-json" type="button">Export JSON</button>
+          <button class="btn danger" id="btn-clear-all" type="button">Delete all</button>
+        </div>
+      </div>
+      <p class="meta-text">Saved locally in your browser (localStorage). Nothing is sent to a server.</p>
+      <div id="history-list" class="history-list"></div>
+    </section>
+
+    <!-- ===================== DASHBOARD VIEW ===================== -->
+    <section id="view-dashboard" class="view" aria-labelledby="dash-heading" hidden>
+      <h2 id="dash-heading">Dashboard</h2>
+      <p class="meta-text">Demonstration statistics computed from your local saved evaluations.</p>
+      <div class="kpi-row" id="kpi-row"></div>
+      <div class="chart-grid">
+        <div class="chart-card">
+          <h3>Verdict distribution</h3>
+          <div id="chart-verdict" class="bar-chart"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Score distribution (all criteria)</h3>
+          <div id="chart-scores" class="bar-chart"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Common error categories</h3>
+          <div id="chart-errors" class="bar-chart"></div>
+        </div>
+        <div class="chart-card">
+          <h3>Average weighted score per criterion</h3>
+          <div id="chart-criteria" class="bar-chart"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===================== RUBRIC VIEW ===================== -->
+    <section id="view-rubric" class="view" aria-labelledby="rubric-heading" hidden>
+      <h2 id="rubric-heading">Scoring rubric &amp; methodology</h2>
+      <p class="meta-text">Scores are subjective human judgments, not objective truths. Weights are transparent and adjustable in code (<code>js/scoring.js</code>).</p>
+      <div class="rubric-grid" id="rubric-grid"></div>
+      <h3>Weighted score</h3>
+      <p>Weighted score per response = Σ(criterion score × weight) / Σ(weight). Weights: factual accuracy 0.25, relevance 0.20, Swahili fluency 0.20, instruction following 0.15, cultural appropriateness 0.10, safety 0.10. A response with any missing rating is marked incomplete and excluded from averages.</p>
+      <h3>Verdict logic</h3>
+      <p>Evaluators may choose A, B, both, or neither. The dashboard does not force a verdict from scores; it records the human choice and displays it alongside weighted scores for transparency.</p>
+      <h3>Limitations</h3>
+      <ul>
+        <li>All data is synthetic and demonstration-only.</li>
+        <li>Swahili fluency judgments are inherently subjective and vary by region and register.</li>
+        <li>Small samples in localStorage are not statistically meaningful.</li>
+        <li>Ambiguous tasks are explicitly labeled and should be treated cautiously.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>MIT License · Synthetic demonstration project · No backend, no API keys.</p>
+  </footer>
+
+  <script src="data/tasks.json" type="application/json" id="tasks-json"></script>
+  <script src="js/data.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/storage.js"></script>
+  <script src="js/export.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
