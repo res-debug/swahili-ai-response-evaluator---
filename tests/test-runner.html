@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Unit Tests · Swahili AI Response Evaluator</title>
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 24px; background: #f6f4ef; color: #16202e; }
+    h1 { font-size: 1.2rem; }
+    .pass { color: #1a7a4a; }
+    .fail { color: #b34a4a; font-weight: 700; }
+    ul { list-style: none; padding: 0; }
+    li { background: #fff; margin: 6px 0; padding: 8px 12px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+    pre { background: #fff; padding: 10px; border-radius: 8px; overflow: auto; font-size: .8rem; }
+  </style>
+</head>
+<body>
+  <h1>Automated tests</h1>
+  <ul id="results"></ul>
+  <pre id="summary"></pre>
+
+  <script src="../js/scoring.js"></script>
+  <script src="../js/export.js"></script>
+  <script>
+    (function () {
+      const results = [];
+      function test(name, fn) {
+        try { fn(); results.push({ name, ok: true }); }
+        catch (e) { results.push({ name, ok: false, err: e.message }); }
+      }
+      function assert(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+      function eq(a, b, msg) { if (a !== b) throw new Error((msg || '') + ` (expected ${JSON.stringify(b)}, got ${JSON.stringify(a)})`); }
+
+      const S = window.Scoring;
+
+      // 1. Score calculation
+      test('weightedScore computes correctly with all ratings', () => {
+        const s = { factual: 5, relevance: 4, fluency: 3, instruction: 5, cultural: 4, safety: 5 };
+        const r = S.weightedScore(s);
+        assert(r.complete, 'should be complete');
+        // 5*.25 + 4*.20 + 3*.20 + 5*.15 + 4*.10 + 5*.10 = 1.25+.8+.6+.75+.4+.5 = 4.3
+        eq(r.score, 4.3, 'weighted score');
+      });
+
+      // 2. Missing ratings
+      test('weightedScore marks missing ratings as incomplete', () => {
+        const s = { factual: 5, relevance: 4, fluency: null, instruction: 5, cultural: 4, safety: 5 };
+        const r = S.weightedScore(s);
+        assert(!r.complete, 'should be incomplete');
+        eq(r.score, null, 'score null');
+        assert(r.missing.includes('fluency'), 'fluency missing');
+      });
+
+      test('weightedScore rejects out-of-range values', () => {
+        const s = { factual: 6, relevance: 4, fluency: 3, instruction: 5, cultural: 4, safety: 5 };
+        const r = S.weightedScore(s);
+        assert(!r.complete, 'out of range should be invalid');
+      });
+
+      // 3. Verdict selection
+      test('isValidVerdict accepts the four verdicts', () => {
+        ['A', 'B', 'both', 'neither'].forEach(v => assert(S.isValidVerdict(v), v));
+      });
+      test('isValidVerdict rejects unknown values', () => {
+        ['', 'X', null, undefined, 'a'].forEach(v => assert(!S.isValidVerdict(v), String(v)));
+      });
+
+      // 4. Validation
+      test('validateEvaluation flags missing verdict', () => {
+        const ev = { taskId: 'T01', verdict: null, justification: 'good enough reason',
+          scoresA: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          scoresB: { factual:1,relevance:1,fluency:1,instruction:1,cultural:1,safety:1 } };
+        const errs = S.validateEvaluation(ev);
+        assert(errs.some(e => /verdict/i.test(e)), 'verdict error expected');
+      });
+      test('validateEvaluation flags short justification', () => {
+        const ev = { taskId: 'T01', verdict: 'A', justification: 'ok',
+          scoresA: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          scoresB: { factual:1,relevance:1,fluency:1,instruction:1,cultural:1,safety:1 } };
+        const errs = S.validateEvaluation(ev);
+        assert(errs.some(e => /justification/i.test(e)), 'justification error expected');
+      });
+      test('validateEvaluation accepts a complete evaluation', () => {
+        const ev = { taskId: 'T01', verdict: 'A', justification: 'A is accurate and safer.',
+          scoresA: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          scoresB: { factual:2,relevance:2,fluency:2,instruction:2,cultural:2,safety:2 } };
+        eq(S.validateEvaluation(ev).length, 0, 'no errors expected');
+      });
+
+      // 5. Aggregation
+      test('aggregate counts verdicts and flags', () => {
+        const mk = (v, flag) => ({
+          taskId: 'T', verdict: v, flagged: flag,
+          scoresA: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          scoresB: { factual:3,relevance:3,fluency:3,instruction:3,cultural:3,safety:3 },
+          errorCategories: ['Factual error']
+        });
+        const agg = S.aggregate([mk('A', false), mk('A', true), mk('both', false)]);
+        eq(agg.total, 3, 'total');
+        eq(agg.verdictCounts.A, 2, 'A count');
+        eq(agg.verdictCounts.both, 1, 'both count');
+        eq(agg.flagged, 1, 'flagged');
+        eq(agg.errorCounts['Factual error'], 3, 'error count');
+        eq(agg.avgA, 5, 'avgA');
+        eq(agg.avgB, 3, 'avgB');
+      });
+
+      // 6. Export
+      test('CSV export has header and rows', () => {
+        const evs = [{
+          id: 'ev1', taskId: 'T01', taskCategory: 'Test', taskLanguage: 'Swahili',
+          verdict: 'A', flagged: false, justification: 'Good',
+          errorCategories: ['Factual error'],
+          scoresA: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          scoresB: { factual:2,relevance:2,fluency:2,instruction:2,cultural:2,safety:2 },
+          createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z'
+        }];
+        const csv = window.Exporter.toCSV(evs);
+        const lines = csv.split(/\r?\n/);
+        eq(lines.length, 2, 'two lines');
+        assert(lines[0].startsWith('id,taskId'), 'header starts correctly');
+        assert(lines[1].includes('ev1'), 'row contains id');
+        assert(lines[1].includes('5'), 'row contains score');
+      });
+
+      test('CSV escapes commas and quotes', () => {
+        const evs = [{
+          id: 'ev2', taskId: 'T02', taskCategory: 'Test', taskLanguage: 'English',
+          verdict: 'B', flagged: true, justification: 'He said "hi", then left',
+          errorCategories: [],
+          scoresA: { factual:1,relevance:1,fluency:1,instruction:1,cultural:1,safety:1 },
+          scoresB: { factual:5,relevance:5,fluency:5,instruction:5,cultural:5,safety:5 },
+          createdAt: '2024-01-01T00:00:00Z', updatedAt: '2024-01-01T00:00:00Z'
+        }];
+        const csv = window.Exporter.toCSV(evs);
+        assert(csv.includes('"He said ""hi"", then left"'), 'quotes escaped');
+      });
+
+      test('JSON export is valid and includes note', () => {
+        const evs = [{ id: 'ev1', taskId: 'T01', verdict: 'A', scoresA: {}, scoresB: {}, justification: 'x' }];
+        const json = window.Exporter.toJSON(evs);
+        const parsed = JSON.parse(json);
+        eq(parsed.count, 1, 'count');
+        assert(parsed.note.toLowerCase().includes('synthetic'), 'note mentions synthetic');
+      });
+
+      // Render
+      const ul = document.getElementById('results');
+      let pass = 0, fail = 0;
+      results.forEach(r => {
+        const li = document.createElement('li');
+        li.innerHTML = (r.ok ? '<span class="pass">PASS</span> ' : '<span class="fail">FAIL</span> ') +
+          r.name + (r.ok ? '' : ' — ' + r.err);
+        ul.appendChild(li);
+        r.ok ? pass++ : fail++;
+      });
+      document.getElementById('summary').textContent =
+        `${pass} passed, ${fail} failed, ${results.length} total.`;
+    })();
+  </script>
+</body>
+</html>
