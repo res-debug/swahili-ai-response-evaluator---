@@ -1,0 +1,72 @@
+# ─────────────────────────────────────────────
+# OS / system files
+# ─────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ─────────────────────────────────────────────
+# Editor / IDE
+# ─────────────────────────────────────────────
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ─────────────────────────────────────────────
+# Logs
+# ─────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─────────────────────────────────────────────
+# Node / build artifacts (project has no build,
+# but included so contributors don't commit junk)
+# ─────────────────────────────────────────────
+node_modules/
+dist/
+build/
+.cache/
+.parcel-cache/
+coverage/
+
+# ─────────────────────────────────────────────
+# Environment / secrets (defensive — app uses none)
+# ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# ─────────────────────────────────────────────
+# Test / tooling temp files
+# ─────────────────────────────────────────────
+playwright-report/
+test-results/
+.lighthouseci/
+tmp/
+temp/
+
+# ─────────────────────────────────────────────
+# Local export output (CSV/JSON exports are
+# downloaded by the browser, but ignore copies
+# if someone saves them into the repo)
+# ─────────────────────────────────────────────
+evaluations*.csv
+evaluations*.json
+!data/tasks.json
